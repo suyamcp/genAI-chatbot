@@ -76,20 +76,37 @@ if user_query := st.chat_input("Ask me about Accenture policies..."):
             {document_context}
             """
             
-            try:
-                # Call the live generative model using your custom persona
-                response = client.models.generate_content(
-                    model='gemini-1.5-flash-002',
-                    contents=grounded_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0.3, # Low temperature ensures it sticks strictly to the PDF text
+            # --- GENERATION PHASE WITH AUTOMATIC RETRY ---
+            import time
+
+            response_text = ""
+            max_retries = 3
+            retry_delay = 2  # wait 2 seconds before retrying
+
+            for attempt in range(max_retries):
+                try:
+                    # Pointing cleanly back to the main 2.5 flash model
+                    response = client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=grounded_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTION,
+                            temperature=0.3,
+                        )
                     )
-                )
-                response_text = response.text
-                
-            except Exception as e:
-                response_text = f"⚠️ **API Connection Error:** Unable to reach Gemini. Technical details: {e}"
+                    response_text = response.text
+                    break  # Success! Break out of the retry loop
+                    
+                except Exception as e:
+                    # Check if it's a 503 server congestion error
+                    if "503" in str(e) and attempt < max_retries - 1:
+                        with st.spinner(f"Server is busy (503). Retrying in {retry_delay}s... (Attempt {attempt + 1}/{max_retries})"):
+                            time.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                    else:
+                        # If it's a different error (like 404) or we ran out of retries
+                        response_text = f"⚠️ **API Connection Error:** Unable to reach Gemini. Technical details: {e}"
+                        break
             
             st.markdown(response_text)
             st.session_state.messages.append({"role": "assistant", "content": response_text})
