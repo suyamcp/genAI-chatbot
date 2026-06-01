@@ -79,7 +79,7 @@ if user_query := st.chat_input("Ask me about Accenture policies..."):
             try:
                 # Call the live generative model using your custom persona
                 response = client.models.generate_content(
-                    model='gemini-2.5-flash',
+                    model='gemini-1.5-flash',
                     contents=grounded_prompt,
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
